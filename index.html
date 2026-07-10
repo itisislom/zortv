@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilmWorks Embed Player</title>
+    <!-- Подключаем hls.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <!-- Иконки -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Сброс стилей для iframe */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        html, body { 
+            width: 100%; 
+            height: 100%; 
+            overflow: hidden; /* Убираем скроллбары */
+            background-color: #000; /* Черный фон как у настоящих плееров */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            color: #e2e8f0;
+        }
+
+        /* Главный контейнер занимает 100% iframe */
+        .embed-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Контейнер видео занимает всё свободное место */
+        .video-section {
+            flex: 1;
+            position: relative;
+            min-height: 0; /* Важно для корректной работы flexbox с видео */
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video { 
+            width: 100%; 
+            height: 100%;
+            object-fit: contain; /* Сохраняет пропорции без обрезки */
+        }
+
+        /* Заголовок поверх видео (как в YouTube) */
+        .player-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px 20px 40px 20px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
+            z-index: 10;
+            pointer-events: none; /* Чтобы клики проходили сквозь текст на видео */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .player-title {
+            font-size: 16px;
+            font-weight: 600;
+            background: linear-gradient(45deg, #38bdf8, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        .header-icon {
+            color: #38bdf8;
+            font-size: 18px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+
+        /* Панель управления */
+        .custom-controls {
+            background: linear-gradient(180deg, #091428 0%, #020617 100%);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+            flex-shrink: 0;
+        }
+
+        .control-group { display: flex; align-items: center; gap: 10px; }
+
+        .btn {
+            background: linear-gradient(135deg, #0c1a30 0%, #020617 100%);
+            border: 1px solid rgba(59, 130, 246, 0.35);
+            color: #38bdf8;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #1d4ed8 0%, #0c1a30 100%);
+            color: #fff;
+            border-color: #60a5fa;
+        }
+
+        .btn-main {
+            background: linear-gradient(135deg, #1e40af 0%, #030712 100%);
+            border-color: #2563eb;
+            font-weight: 600;
+            padding: 8px 18px;
+        }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #f87171;
+            text-transform: uppercase;
+        }
+
+        .live-dot {
+            width: 6px; height: 6px; background: #ef4444; border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 8px #ef4444; }
+            100% { transform: scale(0.9); opacity: 0.5; }
+        }
+
+        .volume-slider {
+            -webkit-appearance: none;
+            width: 70px; height: 4px; background: #1e293b; border-radius: 2px;
+            cursor: pointer;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+            background: #38bdf8;
+        }
+
+        .stream-info { font-size: 12px; color: #64748b; display: none; }
+
+        /* Футер */
+        .footer-section {
+            background: #000;
+            text-align: center;
+            padding: 6px;
+            font-size: 11px;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            flex-shrink: 0;
+        }
+        .footer-section span { color: #60a5fa; font-weight: 600; }
+
+        /* Адаптив для маленьких iframe (мобилки) */
+        @media (max-width: 500px) {
+            .btn-text, .stream-info { display: none; }
+            .btn { padding: 8px 12px; }
+            .btn-main { padding: 8px 14px; }
+            .volume-slider { width: 50px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="embed-container" id="embedContainer">
+        
+        <!-- Блок с видео и плавающим заголовком -->
+        <div class="video-section">
+            <div class="player-header">
+                <i class="fa-solid fa-satellite-dish header-icon"></i>
+                <div class="player-title" id="headerText">Трансляция ZO'R TV от FilmWorks</div>
+            </div>
+            <video id="videoPlayer" playsinline></video>
+        </div>
+
+        <!-- Панель управления -->
+        <div class="custom-controls">
+            <div class="control-group">
+                <button class="btn btn-main" id="playPauseBtn">
+                    <i class="fas fa-play" id="playIcon"></i> <span class="btn-text" id="playText">Воспроизвести</span>
+                </button>
+                
+                <button class="btn" id="muteBtn" style="padding: 8px 10px;">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+            </div>
+
+            <div class="control-group">
+                <div class="stream-info" id="statusInfo">Синхронизация...</div>
+                
+                <div class="live-badge">
+                    <div class="live-dot"></div> <span id="liveText">Эфир</span>
+                </div>
+                
+                <button class="btn" id="fullscreenBtn" style="padding: 8px 10px;">
+                    <i class="fas fa-expand" id="fsIcon"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Подпись автора -->
+        <div class="footer-section">
+            Made by <span>Islom Sadriddinov</span>
+        </div>
+        
+    </div>
+
+    <script>
+        // --- Локализация ---
+        const dictionary = {
+            ru: {
+                header: "Трансляция ZO'R TV от FilmWorks",
+                play: "Воспроизвести", pause: "Пауза",
+                syncing: "Синхронизация...", connected: "Потоки соединены", live: "Эфир"
+            },
+            uz: {
+                header: "ZO'R TV jonli efiri FilmWorks dan",
+                play: "Ijro etish", pause: "To'xtatish",
+                syncing: "Sinxronizatsiya...", connected: "Oqimlar ulandi", live: "Efir"
+            }
+        };
+
+        const userLang = navigator.language.toLowerCase().includes('uz') ? 'uz' : 'ru';
+        const t = dictionary[userLang];
+
+        document.getElementById('headerText').innerText = t.header;
+        document.getElementById('playText').innerText = t.play;
+        document.getElementById('statusInfo').innerText = t.syncing;
+        document.getElementById('liveText').innerText = t.live;
+        document.documentElement.lang = userLang;
+
+        // --- HLS Логика (Склейка потоков) ---
+        const videoSrc = "https://stream15-uzbeeline.platform24.tv/mbrjwt/27866a681938ad1bd3b1367f2fc241035541c80f-4783-0-uzt6061235-5-1587428597-1783697125-e128-bAJN1qu2BXjf8VHaZ6jfT9ykfl9kg4FJsIcusdiUoVk/0.m3u8?pid=256";
+        const audioSrc = "https://stream15-uzbeeline.platform24.tv/mbrjwt/27866a681938ad1bd3b1367f2fc241035541c80f-4783-0-uzt6061235-5-1587428597-1783697125-e128-bAJN1qu2BXjf8VHaZ6jfT9ykfl9kg4FJsIcusdiUoVk/2.m3u8?pid=260";
+
+        const masterManifest = `
+#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="MainAudio",DEFAULT=YES,AUTOSELECT=YES,URI="${audioSrc}"
+#EXT-X-STREAM-INF:BANDWIDTH=2500000,AUDIO="audio_group"
+${videoSrc}
+        `.trim();
+
+        const video = document.getElementById('videoPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const playText = document.getElementById('playText');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const embedContainer = document.getElementById('embedContainer');
+        const statusInfo = document.getElementById('statusInfo');
+
+        if (Hls.isSupported()) {
+            const blob = new Blob([masterManifest], { type: 'application/vnd.apple.mpegurl' });
+            const blobUrl = URL.createObjectURL(blob);
+            const hls = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 8, enableWorker: true });
+
+            hls.loadSource(blobUrl);
+            hls.attachMedia(video);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, () => statusInfo.innerText = t.connected);
+            hls.on(Hls.Events.ERROR, function (event, data) {
+                if (data.fatal) {
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+                    else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+                }
+            });
+        }
+
+        // --- Управление ---
+        playPauseBtn.addEventListener('click', () => {
+            if (video.paused) {
+                video.play().then(() => {
+                    playIcon.className = "fas fa-pause";
+                    playText.innerText = t.pause;
+                });
+            } else {
+                video.pause();
+                playIcon.className = "fas fa-play";
+                playText.innerText = t.play;
+            }
+        });
+
+        video.addEventListener('click', () => playPauseBtn.click());
+
+        muteBtn.addEventListener('click', () => {
+            video.muted = !video.muted;
+            updateVolumeUI();
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            video.volume = e.target.value;
+            video.muted = (video.volume == 0);
+            updateVolumeUI();
+        });
+
+        function updateVolumeUI() {
+            if (video.muted || video.volume == 0) {
+                muteBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                volumeSlider.value = 0;
+            } else if (video.volume < 0.5) {
+                muteBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
+                volumeSlider.value = video.volume;
+            } else {
+                muteBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                volumeSlider.value = video.volume;
+            }
+        }
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                embedContainer.requestFullscreen().then(() => {
+                    document.getElementById('fsIcon').className = 'fas fa-compress';
+                });
+            } else {
+                document.exitFullscreen();
+                document.getElementById('fsIcon').className = 'fas fa-expand';
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.getElementById('fsIcon').className = 'fas fa-expand';
+            }
+        });
+    </script>
+</body>
+</html>
