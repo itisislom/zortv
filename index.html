@@ -154,8 +154,11 @@
             font-weight: 600;
             color: #d1d5db;
             text-transform: uppercase;
-            cursor: default;
+            cursor: pointer; /* Сделали кликабельным */
+            transition: opacity 0.2s, transform 0.1s;
         }
+        .live-badge:hover { opacity: 0.8; }
+        .live-badge:active { transform: scale(0.95); }
 
         .live-dot { width: 8px; height: 8px; background: #6b7280; border-radius: 50%; }
         .live-badge.is-live { color: #e2e8f0; }
@@ -268,7 +271,7 @@
             .player-header { padding: 15px; }
             .bottom-controls-wrapper { padding: 30px 15px 10px 15px; }
             .volume-slider { width: 60px; opacity: 1; margin-left: 5px; }
-            .control-group { gap: 12px; } /* Чуть уменьшен отступ, чтобы вместилась новая кнопка */
+            .control-group { gap: 12px; }
             .footer-credit { display: none; }
             .settings-menu { right: -10px; }
         }
@@ -296,24 +299,24 @@
                 <div class="controls-row">
                     
                     <div class="control-group">
-                        <button class="btn" id="playPauseBtn" title="Воспроизвести">
+                        <button class="btn" id="playPauseBtn" title="Воспроизвести (Пробел)">
                             <i class="fas fa-play" id="playIcon"></i>
                         </button>
                         
                         <div class="volume-container">
-                            <button class="btn" id="muteBtn" title="Звук">
+                            <button class="btn" id="muteBtn" title="Звук (M)">
                                 <i class="fas fa-volume-up" id="volumeIcon"></i>
                             </button>
                             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
                         </div>
 
-                        <div class="live-badge" id="liveBadge" title="Синхронизация...">
+                        <!-- Теперь эта кнопка кликабельна для перехода в Live -->
+                        <div class="live-badge" id="liveBadge" title="Вернуться в прямой эфир">
                             <div class="live-dot"></div> <span id="liveText">Синхронизация...</span>
                         </div>
                     </div>
 
                     <div class="control-group">
-                        <!-- Кнопка Картинка-в-картинке (Pop-up) -->
                         <button class="btn" id="pipBtn" title="Мини-плеер (Pop-up)">
                             <i class="fa-solid fa-clone"></i>
                         </button>
@@ -326,7 +329,7 @@
                             <!-- Пункты генерируются через JS -->
                         </div>
 
-                        <button class="btn" id="fullscreenBtn" title="Во весь экран">
+                        <button class="btn" id="fullscreenBtn" title="Во весь экран (F)">
                             <i class="fas fa-expand" id="fsIcon"></i>
                         </button>
                     </div>
@@ -357,6 +360,7 @@
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsMenu = document.getElementById('settingsMenu');
         const pipBtn = document.getElementById('pipBtn');
+        const liveBadge = document.getElementById('liveBadge');
         
         let hlsPlayer; 
 
@@ -382,7 +386,7 @@ ${videoSrc}
 
             hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
                 document.getElementById('liveText').innerText = t.connected;
-                document.getElementById('liveBadge').classList.add('is-live');
+                liveBadge.classList.add('is-live');
                 buildSettingsMenu();
             });
 
@@ -396,6 +400,22 @@ ${videoSrc}
                 }
             });
         }
+
+        // --- Кнопка "Перемотать в Эфир" ---
+        liveBadge.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Получаем самую актуальную позицию прямого эфира из HLS (либо используем duration как запасной вариант)
+            if (hlsPlayer && hlsPlayer.liveSyncPosition) {
+                video.currentTime = hlsPlayer.liveSyncPosition;
+            } else if (video.duration) {
+                video.currentTime = video.duration;
+            }
+            
+            // Запускаем воспроизведение, если оно было на паузе
+            if (video.paused) {
+                togglePlay();
+            }
+        });
 
         // --- Меню настроек ---
         function buildSettingsMenu() {
@@ -483,7 +503,6 @@ ${videoSrc}
         });
 
         // --- Picture in Picture (Pop-up плеер) ---
-        // Проверяем поддержку PiP браузером. Если не поддерживается - скрываем кнопку
         if (!('pictureInPictureEnabled' in document) && !video.webkitSetPresentationMode) {
             pipBtn.style.display = 'none';
         }
@@ -496,7 +515,6 @@ ${videoSrc}
                 } else if (document.pictureInPictureEnabled) {
                     await video.requestPictureInPicture();
                 } else if (video.webkitSetPresentationMode) {
-                    // Поддержка для старых версий iOS/Safari
                     video.webkitSetPresentationMode(video.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
                 }
             } catch (error) {
@@ -517,6 +535,28 @@ ${videoSrc}
         }
 
         container.addEventListener('mousemove', showUI);
+        
+        // --- Горячие клавиши (M, F, Space) ---
+        document.addEventListener('keydown', (e) => {
+            // Игнорируем нажатия, если пользователь вводит текст в какое-нибудь поле (на будущее)
+            if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') return;
+            
+            const key = e.key.toLowerCase();
+            
+            // M или Ь (русская) - Мут/Анмут
+            if (key === 'm' || key === 'ь') {
+                toggleMute();
+            }
+            // F или А (русская) - Полный экран
+            else if (key === 'f' || key === 'а') {
+                toggleFullScreen();
+            }
+            // Пробел - Пауза/Плей
+            else if (e.code === 'Space') {
+                e.preventDefault(); // Запрещаем прокрутку страницы вниз при нажатии пробела
+                togglePlay();
+            }
+        });
         
         // --- Логика тапов ---
         let lastClickTime = 0;
@@ -571,11 +611,15 @@ ${videoSrc}
             }
         }
 
-        muteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
+        function toggleMute() {
             video.muted = !video.muted;
             if(!video.muted && video.volume === 0) video.volume = 1;
             updateVolumeUI();
+        }
+
+        muteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMute();
         });
 
         volumeSlider.addEventListener('input', (e) => {
@@ -591,8 +635,11 @@ ${videoSrc}
         const fsIcon = document.getElementById('fsIcon');
 
         function toggleFullScreen() {
-            if (!document.fullscreenElement) container.requestFullscreen().catch(err => console.log(err));
-            else document.exitFullscreen();
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => console.log(err));
+            } else {
+                document.exitFullscreen();
+            }
         }
 
         fullscreenBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullScreen(); });
