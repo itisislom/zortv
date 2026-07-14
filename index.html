@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FilmWorks Embed Player</title>
+    <!-- Подключаем hls.js -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <!-- Иконки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -14,6 +16,7 @@
             width: 100%; 
             height: 100%; 
             overflow: hidden; 
+            /* Темно-синий в черный фон */
             background: linear-gradient(135deg, #0a1128 0%, #000000 100%); 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
             color: #fff;
@@ -36,7 +39,18 @@
             height: 100%;
             object-fit: contain;
             outline: none;
-            pointer-events: auto;
+        }
+
+        /* Невидимый слой для отлова кликов по всей области видео */
+        .click-catcher {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .player-ui {
@@ -50,7 +64,7 @@
             justify-content: space-between;
             z-index: 10;
             transition: opacity 0.3s ease;
-            pointer-events: none; /* Пропускает клики к видео */
+            pointer-events: none; /* Клики сквозь пустоту идут в click-catcher */
         }
 
         .player-container.hide-ui .player-ui {
@@ -63,13 +77,13 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            pointer-events: auto; /* Возвращает клики на шапку */
+            pointer-events: auto; /* Включаем клики для шапки */
         }
 
         .bottom-controls-wrapper {
             padding: 40px 20px 15px 20px;
             background: linear-gradient(to top, rgba(6, 11, 25, 0.95) 0%, transparent 100%);
-            pointer-events: auto; /* Возвращает клики на нижнюю панель */
+            pointer-events: auto; /* Включаем клики для панели */
         }
 
         .mixed-gradient-text {
@@ -111,6 +125,7 @@
             justify-content: center;
             text-shadow: 0 1px 2px rgba(0,0,0,0.8);
             width: 30px;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .btn:hover { color: #60a5fa; }
@@ -156,6 +171,7 @@
             text-transform: uppercase;
             cursor: pointer; 
             transition: opacity 0.2s, transform 0.1s;
+            -webkit-tap-highlight-color: transparent;
         }
         .live-badge:hover { opacity: 0.8; }
         .live-badge:active { transform: scale(0.95); }
@@ -208,6 +224,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .settings-item:hover {
@@ -252,19 +269,18 @@
             font-size: 30px;
             color: #fff;
             cursor: pointer;
-            /* ВАЖНО: Кнопка не должна блокировать тапы по центру, если видео играет */
-            pointer-events: none; 
+            pointer-events: none; /* Не блокирует тапы */
             opacity: 0;
             transition: opacity 0.2s, transform 0.2s;
             z-index: 15;
             padding-left: 5px;
+            -webkit-tap-highlight-color: transparent;
         }
         
         .player-container.is-paused .center-play {
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
-            /* Делаем её кликабельной только когда видео на паузе */
-            pointer-events: auto; 
+            pointer-events: auto; /* Включаем кликабельность на паузе */
         }
         .player-container.is-paused.hide-ui .center-play {
             opacity: 0; 
@@ -285,15 +301,15 @@
 
     <div class="player-container is-paused" id="playerContainer">
         
-        <!-- Само видео, которое реагирует на тапы -->
         <video id="videoPlayer" playsinline></video>
 
-        <!-- Центральная кнопка Play -->
+        <!-- Сенсорный слой для мобилок. Он прозрачный и ловит все тапы -->
+        <div class="click-catcher" id="clickCatcher"></div>
+
         <div class="center-play" id="centerPlayBtn">
             <i class="fas fa-play"></i>
         </div>
 
-        <!-- Оверлей управления -->
         <div class="player-ui">
             <div class="player-header">
                 <i class="fa-solid fa-satellite-dish mixed-gradient-text"></i>
@@ -360,6 +376,7 @@
 
         const container = document.getElementById('playerContainer');
         const video = document.getElementById('videoPlayer');
+        const clickCatcher = document.getElementById('clickCatcher');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const centerPlayBtn = document.getElementById('centerPlayBtn');
         const playIcon = document.getElementById('playIcon');
@@ -367,12 +384,15 @@
         const settingsMenu = document.getElementById('settingsMenu');
         const pipBtn = document.getElementById('pipBtn');
         const liveBadge = document.getElementById('liveBadge');
+        const playerUI = document.querySelector('.player-ui');
         
         let hlsPlayer; 
 
+        // Ссылки на потоки
         const videoSrc = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/0.m3u8?pid=256";
         const audioSrcRu = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/2.m3u8?pid=259";
-        const audioSrcUz = audioSrcRu.replace("2.m3u8", "3.m3u8"); // Не забудьте указать точную ссылку для узбекского языка
+        // ВАЖНО: Замените эту ссылку на реальную ссылку с узбекской дорожкой
+        const audioSrcUz = audioSrcRu.replace("2.m3u8", "3.m3u8"); 
 
         const masterManifest = `
 #EXTM3U
@@ -496,33 +516,40 @@ ${videoSrc}
             settingsMenu.classList.toggle('show');
         });
 
-        document.addEventListener('click', (e) => {
-            if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
-                settingsMenu.classList.remove('show');
-            }
+        // Закрываем меню при клике по экрану
+        clickCatcher.addEventListener('click', () => {
+            settingsMenu.classList.remove('show');
         });
 
-        // --- Picture in Picture ---
-        if (!('pictureInPictureEnabled' in document) && !video.webkitSetPresentationMode) {
-            pipBtn.style.display = 'none';
-        }
-
+        // --- Picture in Picture (с поддержкой AndroidBridge) ---
         pipBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             try {
-                if (document.pictureInPictureElement) {
-                    await document.exitPictureInPicture();
-                } else if (document.pictureInPictureEnabled) {
-                    await video.requestPictureInPicture();
-                } else if (video.webkitSetPresentationMode) {
+                // 1. Мост для нативного приложения Android Studio
+                if (window.AndroidBridge && window.AndroidBridge.enterPiP) {
+                    window.AndroidBridge.enterPiP(); 
+                } 
+                // 2. Стандартный веб-метод
+                else if (document.pictureInPictureEnabled) {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else {
+                        await video.requestPictureInPicture();
+                    }
+                } 
+                // 3. Apple iOS (Safari)
+                else if (video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === "function") {
                     video.webkitSetPresentationMode(video.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
+                } 
+                else {
+                    alert("Режим мини-плеера не поддерживается на этом устройстве.");
                 }
             } catch (error) {
-                console.error("Ошибка при переходе в режим мини-плеера:", error);
+                console.error("Ошибка PiP:", error);
             }
         });
 
-        // --- Улучшенная логика скрытия UI и тапов для мобилок ---
+        // --- Скрытие интерфейса ---
         let uiTimeout;
         function showUI() {
             container.classList.remove('hide-ui');
@@ -534,28 +561,29 @@ ${videoSrc}
             }
         }
 
-        // Для ПК - при движении мыши
+        // Для ПК: движение мыши показывает UI
         container.addEventListener('mousemove', showUI);
         
-        // Клик по любому месту контейнера (кроме видео) сохраняет UI открытым
-        container.addEventListener('click', showUI);
+        // Взаимодействие с кнопками сбрасывает таймер
+        playerUI.addEventListener('click', showUI, true);
+        playerUI.addEventListener('touchstart', showUI, {passive: true, capture: true});
 
-        // Клик/Тап именно по видео (решает проблему с телефонами)
+        // --- ЛОГИКА ТАПОВ (Через Click-Catcher) ---
         let lastClickTime = 0;
-        video.addEventListener('click', (e) => {
-            e.stopPropagation(); // Не дает событию уйти в container
+        
+        clickCatcher.addEventListener('click', (e) => {
             const currentTime = new Date().getTime();
             
-            // Если двойной тап (меньше 300мс)
+            // Двойной тап
             if (currentTime - lastClickTime < 300) {
                 togglePlay();
                 lastClickTime = 0; 
             } else {
-                // Если одинарный тап
+                // Одинарный тап
                 if (container.classList.contains('hide-ui')) {
-                    showUI(); // Показываем интерфейс
+                    showUI();
                 } else {
-                    container.classList.add('hide-ui'); // Скрываем интерфейс
+                    container.classList.add('hide-ui');
                     clearTimeout(uiTimeout);
                 }
                 lastClickTime = currentTime;
@@ -579,8 +607,6 @@ ${videoSrc}
         }
 
         playPauseBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
-        
-        // Центральная кнопка теперь кликабельна ТОЛЬКО на паузе
         centerPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
 
         // --- Звук ---
