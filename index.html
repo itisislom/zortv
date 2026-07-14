@@ -50,7 +50,7 @@
             justify-content: space-between;
             z-index: 10;
             transition: opacity 0.3s ease;
-            pointer-events: none;
+            pointer-events: none; /* Пропускает клики к видео */
         }
 
         .player-container.hide-ui .player-ui {
@@ -63,13 +63,13 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            pointer-events: auto;
+            pointer-events: auto; /* Возвращает клики на шапку */
         }
 
         .bottom-controls-wrapper {
             padding: 40px 20px 15px 20px;
             background: linear-gradient(to top, rgba(6, 11, 25, 0.95) 0%, transparent 100%);
-            pointer-events: auto;
+            pointer-events: auto; /* Возвращает клики на нижнюю панель */
         }
 
         .mixed-gradient-text {
@@ -154,7 +154,7 @@
             font-weight: 600;
             color: #d1d5db;
             text-transform: uppercase;
-            cursor: pointer; /* Сделали кликабельным */
+            cursor: pointer; 
             transition: opacity 0.2s, transform 0.1s;
         }
         .live-badge:hover { opacity: 0.8; }
@@ -252,7 +252,8 @@
             font-size: 30px;
             color: #fff;
             cursor: pointer;
-            pointer-events: auto;
+            /* ВАЖНО: Кнопка не должна блокировать тапы по центру, если видео играет */
+            pointer-events: none; 
             opacity: 0;
             transition: opacity 0.2s, transform 0.2s;
             z-index: 15;
@@ -262,9 +263,12 @@
         .player-container.is-paused .center-play {
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
+            /* Делаем её кликабельной только когда видео на паузе */
+            pointer-events: auto; 
         }
         .player-container.is-paused.hide-ui .center-play {
             opacity: 0; 
+            pointer-events: none;
         }
 
         @media (max-width: 600px) {
@@ -281,12 +285,15 @@
 
     <div class="player-container is-paused" id="playerContainer">
         
+        <!-- Само видео, которое реагирует на тапы -->
         <video id="videoPlayer" playsinline></video>
 
+        <!-- Центральная кнопка Play -->
         <div class="center-play" id="centerPlayBtn">
             <i class="fas fa-play"></i>
         </div>
 
+        <!-- Оверлей управления -->
         <div class="player-ui">
             <div class="player-header">
                 <i class="fa-solid fa-satellite-dish mixed-gradient-text"></i>
@@ -310,7 +317,6 @@
                             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
                         </div>
 
-                        <!-- Теперь эта кнопка кликабельна для перехода в Live -->
                         <div class="live-badge" id="liveBadge" title="Вернуться в прямой эфир">
                             <div class="live-dot"></div> <span id="liveText">Синхронизация...</span>
                         </div>
@@ -401,20 +407,15 @@ ${videoSrc}
             });
         }
 
-        // --- Кнопка "Перемотать в Эфир" ---
+        // --- Перемотка в эфир ---
         liveBadge.addEventListener('click', (e) => {
             e.stopPropagation();
-            // Получаем самую актуальную позицию прямого эфира из HLS (либо используем duration как запасной вариант)
             if (hlsPlayer && hlsPlayer.liveSyncPosition) {
                 video.currentTime = hlsPlayer.liveSyncPosition;
             } else if (video.duration) {
                 video.currentTime = video.duration;
             }
-            
-            // Запускаем воспроизведение, если оно было на паузе
-            if (video.paused) {
-                togglePlay();
-            }
+            if (video.paused) togglePlay();
         });
 
         // --- Меню настроек ---
@@ -462,7 +463,6 @@ ${videoSrc}
                     settingsMenu.appendChild(item);
                 });
             }
-            
             updateSettingsMenuUI();
         }
 
@@ -502,7 +502,7 @@ ${videoSrc}
             }
         });
 
-        // --- Picture in Picture (Pop-up плеер) ---
+        // --- Picture in Picture ---
         if (!('pictureInPictureEnabled' in document) && !video.webkitSetPresentationMode) {
             pipBtn.style.display = 'none';
         }
@@ -522,7 +522,7 @@ ${videoSrc}
             }
         });
 
-        // --- Логика скрытия интерфейса ---
+        // --- Улучшенная логика скрытия UI и тапов для мобилок ---
         let uiTimeout;
         function showUI() {
             container.classList.remove('hide-ui');
@@ -534,42 +534,30 @@ ${videoSrc}
             }
         }
 
+        // Для ПК - при движении мыши
         container.addEventListener('mousemove', showUI);
         
-        // --- Горячие клавиши (M, F, Space) ---
-        document.addEventListener('keydown', (e) => {
-            // Игнорируем нажатия, если пользователь вводит текст в какое-нибудь поле (на будущее)
-            if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') return;
-            
-            const key = e.key.toLowerCase();
-            
-            // M или Ь (русская) - Мут/Анмут
-            if (key === 'm' || key === 'ь') {
-                toggleMute();
-            }
-            // F или А (русская) - Полный экран
-            else if (key === 'f' || key === 'а') {
-                toggleFullScreen();
-            }
-            // Пробел - Пауза/Плей
-            else if (e.code === 'Space') {
-                e.preventDefault(); // Запрещаем прокрутку страницы вниз при нажатии пробела
-                togglePlay();
-            }
-        });
-        
-        // --- Логика тапов ---
+        // Клик по любому месту контейнера (кроме видео) сохраняет UI открытым
+        container.addEventListener('click', showUI);
+
+        // Клик/Тап именно по видео (решает проблему с телефонами)
         let lastClickTime = 0;
         video.addEventListener('click', (e) => {
-            e.stopPropagation();
+            e.stopPropagation(); // Не дает событию уйти в container
             const currentTime = new Date().getTime();
             
+            // Если двойной тап (меньше 300мс)
             if (currentTime - lastClickTime < 300) {
                 togglePlay();
                 lastClickTime = 0; 
             } else {
-                if (container.classList.contains('hide-ui')) showUI();
-                else container.classList.add('hide-ui');
+                // Если одинарный тап
+                if (container.classList.contains('hide-ui')) {
+                    showUI(); // Показываем интерфейс
+                } else {
+                    container.classList.add('hide-ui'); // Скрываем интерфейс
+                    clearTimeout(uiTimeout);
+                }
                 lastClickTime = currentTime;
             }
         });
@@ -591,6 +579,8 @@ ${videoSrc}
         }
 
         playPauseBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
+        
+        // Центральная кнопка теперь кликабельна ТОЛЬКО на паузе
         centerPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
 
         // --- Звук ---
@@ -617,11 +607,7 @@ ${videoSrc}
             updateVolumeUI();
         }
 
-        muteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleMute();
-        });
-
+        muteBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); });
         volumeSlider.addEventListener('input', (e) => {
             e.stopPropagation();
             video.volume = e.target.value;
@@ -646,6 +632,19 @@ ${videoSrc}
 
         document.addEventListener('fullscreenchange', () => {
             fsIcon.className = document.fullscreenElement ? 'fas fa-compress' : 'fas fa-expand';
+        });
+
+        // --- Горячие клавиши (M, F, Space) ---
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') return;
+            const key = e.key.toLowerCase();
+            
+            if (key === 'm' || key === 'ь') toggleMute();
+            else if (key === 'f' || key === 'а') toggleFullScreen();
+            else if (e.code === 'Space') {
+                e.preventDefault(); 
+                togglePlay();
+            }
         });
     </script>
 </body>
