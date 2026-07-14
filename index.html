@@ -4,32 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FilmWorks Embed Player</title>
-    <!-- Подключаем hls.js -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-    <!-- Иконки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* Сброс стилей */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
         html, body { 
             width: 100%; 
             height: 100%; 
             overflow: hidden; 
-            background-color: #000; 
+            /* Темно-синий в черный фон */
+            background: linear-gradient(135deg, #0a1128 0%, #000000 100%); 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
             color: #fff;
         }
 
-        /* Главный контейнер плеера */
         .player-container {
             position: relative;
             width: 100%;
             height: 100%;
             display: flex;
-            background: #000;
-            /* Скрываем курсор, когда интерфейс неактивен */
             cursor: default;
         }
 
@@ -37,7 +32,6 @@
             cursor: none;
         }
 
-        /* Видео */
         video { 
             width: 100%; 
             height: 100%;
@@ -45,7 +39,6 @@
             outline: none;
         }
 
-        /* Обертка для всего интерфейса (поверх видео) */
         .player-ui {
             position: absolute;
             top: 0;
@@ -57,39 +50,46 @@
             justify-content: space-between;
             z-index: 10;
             transition: opacity 0.3s ease;
-            pointer-events: none; /* Пропускаем клики к видео, где нет кнопок */
+            pointer-events: none;
         }
 
         .player-container.hide-ui .player-ui {
             opacity: 0;
         }
 
-        /* Заголовок (верхний градиент) */
+        /* Темно-синие градиенты для шапки и подвала (YouTube style) */
         .player-header {
             padding: 20px 20px 40px 20px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+            background: linear-gradient(to bottom, rgba(6, 11, 25, 0.9) 0%, transparent 100%);
             display: flex;
             align-items: center;
             gap: 12px;
-            pointer-events: auto; /* Возвращаем клики для шапки */
+            pointer-events: auto;
         }
 
-        .header-icon {
-            color: #ef4444; /* Красная иконка как у Live */
+        .bottom-controls-wrapper {
+            padding: 40px 20px 15px 20px;
+            background: linear-gradient(to top, rgba(6, 11, 25, 0.95) 0%, transparent 100%);
+            pointer-events: auto;
+        }
+
+        /* Смесь синего и красного для иконок эфира */
+        .mixed-gradient-text {
+            background: linear-gradient(135deg, #ef4444 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             font-size: 20px;
+        }
+
+        .mixed-gradient-bg {
+            background: linear-gradient(135deg, #ef4444 0%, #3b82f6 100%);
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
         }
 
         .player-title {
             font-size: 16px;
             font-weight: 500;
             text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-        }
-
-        /* Панель управления (нижний градиент) */
-        .bottom-controls-wrapper {
-            padding: 40px 20px 15px 20px;
-            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
-            pointer-events: auto;
         }
 
         .controls-row {
@@ -103,9 +103,9 @@
             display: flex; 
             align-items: center; 
             gap: 20px; 
+            position: relative;
         }
 
-        /* Минималистичные кнопки */
         .btn {
             background: transparent;
             border: none;
@@ -121,14 +121,14 @@
         }
 
         .btn:hover {
-            color: #38bdf8;
+            color: #60a5fa; /* Синий ховер */
         }
 
         .btn:active {
             transform: scale(0.9);
         }
 
-        /* Громкость */
+        /* Ползунок громкости */
         .volume-container {
             display: flex;
             align-items: center;
@@ -137,7 +137,7 @@
 
         .volume-slider {
             -webkit-appearance: none;
-            width: 0; /* Скрыто по умолчанию на десктопе до наведения */
+            width: 0;
             height: 4px; 
             background: rgba(255, 255, 255, 0.3); 
             border-radius: 2px;
@@ -166,7 +166,7 @@
             border-radius: 2px;
         }
 
-        /* Бейдж прямого эфира */
+        /* Индикатор Live */
         .live-badge {
             display: flex;
             align-items: center;
@@ -175,23 +175,70 @@
             font-weight: 600;
             color: #d1d5db;
             text-transform: uppercase;
-            cursor: pointer;
-        }
-        
-        .live-badge.is-live {
-            color: #ef4444; /* Красный цвет, когда онлайн */
+            cursor: default;
         }
 
         .live-dot {
             width: 8px; height: 8px; background: #6b7280; border-radius: 50%;
         }
 
+        .live-badge.is-live {
+            color: #e2e8f0; 
+        }
         .live-badge.is-live .live-dot {
-            background: #ef4444;
-            box-shadow: 0 0 6px #ef4444;
+            background: linear-gradient(135deg, #ef4444 0%, #3b82f6 100%);
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
         }
 
-        /* Подпись */
+        /* Меню настроек качества */
+        .settings-menu {
+            position: absolute;
+            bottom: 45px;
+            right: 0;
+            background: rgba(6, 11, 25, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            padding: 8px 0;
+            display: none;
+            flex-direction: column;
+            min-width: 120px;
+            z-index: 20;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .settings-menu.show {
+            display: flex;
+        }
+
+        .settings-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #cbd5e1;
+            transition: background 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-item:hover {
+            background: rgba(59, 130, 246, 0.2);
+            color: #fff;
+        }
+
+        .settings-item.active {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+        
+        .settings-item.active::before {
+            content: '\f00c'; /* Галочка FontAwesome */
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            font-size: 12px;
+        }
+
         .footer-credit {
             position: absolute;
             bottom: 55px;
@@ -199,17 +246,15 @@
             font-size: 11px;
             color: rgba(255,255,255,0.4);
             pointer-events: none;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
         .footer-credit span { color: rgba(96, 165, 250, 0.6); }
 
-        /* Огромная кнопка Play по центру (появляется при паузе) */
         .center-play {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%) scale(1.5);
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(6, 11, 25, 0.6);
             border-radius: 50%;
             width: 70px;
             height: 70px;
@@ -223,7 +268,7 @@
             opacity: 0;
             transition: opacity 0.2s, transform 0.2s;
             z-index: 15;
-            padding-left: 5px; /* Выравнивание треугольника */
+            padding-left: 5px;
         }
         
         .player-container.is-paused .center-play {
@@ -231,20 +276,16 @@
             transform: translate(-50%, -50%) scale(1);
         }
         .player-container.is-paused.hide-ui .center-play {
-            opacity: 0; /* Скрываем даже ее, если UI скрыт по таймауту */
+            opacity: 0; 
         }
 
-        /* Мобильная адаптация */
         @media (max-width: 600px) {
             .player-header { padding: 15px; }
             .bottom-controls-wrapper { padding: 30px 15px 10px 15px; }
-            .volume-slider { 
-                width: 60px; /* На мобилке показываем ползунок всегда */
-                opacity: 1; 
-                margin-left: 5px;
-            }
+            .volume-slider { width: 60px; opacity: 1; margin-left: 5px; }
             .control-group { gap: 15px; }
             .footer-credit { display: none; }
+            .settings-menu { right: -10px; }
         }
     </style>
 </head>
@@ -252,19 +293,16 @@
 
     <div class="player-container is-paused" id="playerContainer">
         
-        <!-- Само видео -->
         <video id="videoPlayer" playsinline></video>
 
-        <!-- Центральная кнопка Play (для мобилок и паузы) -->
         <div class="center-play" id="centerPlayBtn">
             <i class="fas fa-play"></i>
         </div>
 
-        <!-- Оверлей интерфейса -->
         <div class="player-ui">
             <!-- Шапка -->
             <div class="player-header">
-                <i class="fa-solid fa-satellite-dish header-icon"></i>
+                <i class="fa-solid fa-satellite-dish mixed-gradient-text"></i>
                 <div class="player-title" id="headerText">Трансляция ZO'R TV от FilmWorks</div>
             </div>
 
@@ -274,7 +312,6 @@
             <div class="bottom-controls-wrapper">
                 <div class="controls-row">
                     
-                    <!-- Левая часть -->
                     <div class="control-group">
                         <button class="btn" id="playPauseBtn" title="Воспроизвести">
                             <i class="fas fa-play" id="playIcon"></i>
@@ -287,13 +324,22 @@
                             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
                         </div>
 
-                        <div class="live-badge is-live" id="liveBadge" title="Синхронизация...">
-                            <div class="live-dot"></div> <span id="liveText">Эфир</span>
+                        <div class="live-badge" id="liveBadge" title="Синхронизация...">
+                            <div class="live-dot"></div> <span id="liveText">Синхронизация...</span>
                         </div>
                     </div>
 
-                    <!-- Правая часть -->
+                    <!-- Правая часть с настройками -->
                     <div class="control-group">
+                        <button class="btn" id="settingsBtn" title="Настройки качества">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        
+                        <!-- Всплывающее меню настроек -->
+                        <div class="settings-menu" id="settingsMenu">
+                            <!-- Пункты генерируются через JS -->
+                        </div>
+
                         <button class="btn" id="fullscreenBtn" title="Во весь экран">
                             <i class="fas fa-expand" id="fsIcon"></i>
                         </button>
@@ -305,10 +351,9 @@
     </div>
 
     <script>
-        // --- Локализация ---
         const dictionary = {
-            ru: { header: "Трансляция ZO'R TV", play: "Воспроизвести", pause: "Пауза", syncing: "Синхронизация...", connected: "Эфир" },
-            uz: { header: "ZO'R TV jonli efiri", play: "Ijro etish", pause: "To'xtatish", syncing: "Sinxron...", connected: "Efir" }
+            ru: { header: "Трансляция ZO'R TV", play: "Воспроизвести", pause: "Пауза", syncing: "Синхронизация...", connected: "Эфир", auto: "Авто" },
+            uz: { header: "ZO'R TV jonli efiri", play: "Ijro etish", pause: "To'xtatish", syncing: "Sinxron...", connected: "Efir", auto: "Avto" }
         };
 
         const userLang = navigator.language.toLowerCase().includes('uz') ? 'uz' : 'ru';
@@ -316,23 +361,17 @@
 
         document.getElementById('headerText').innerText = t.header;
         document.getElementById('liveText').innerText = t.syncing;
-        document.documentElement.lang = userLang;
 
-        // --- Элементы DOM ---
         const container = document.getElementById('playerContainer');
         const video = document.getElementById('videoPlayer');
         const playPauseBtn = document.getElementById('playPauseBtn');
         const centerPlayBtn = document.getElementById('centerPlayBtn');
         const playIcon = document.getElementById('playIcon');
-        const muteBtn = document.getElementById('muteBtn');
-        const volumeIcon = document.getElementById('volumeIcon');
-        const volumeSlider = document.getElementById('volumeSlider');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const fsIcon = document.getElementById('fsIcon');
-        const liveBadge = document.getElementById('liveBadge');
-        const liveText = document.getElementById('liveText');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsMenu = document.getElementById('settingsMenu');
+        
+        let hlsPlayer; // Для доступа к hls из других функций
 
-        // --- HLS Логика ---
         const videoSrc = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/0.m3u8?pid=256";
         const audioSrc = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/2.m3u8?pid=259";
 
@@ -346,59 +385,122 @@ ${videoSrc}
         if (Hls.isSupported()) {
             const blob = new Blob([masterManifest], { type: 'application/vnd.apple.mpegurl' });
             const blobUrl = URL.createObjectURL(blob);
-            const hls = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 8, enableWorker: true });
+            hlsPlayer = new Hls({ liveSyncDurationCount: 3, maxBufferLength: 8, enableWorker: true });
 
-            hls.loadSource(blobUrl);
-            hls.attachMedia(video);
+            hlsPlayer.loadSource(blobUrl);
+            hlsPlayer.attachMedia(video);
 
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                liveText.innerText = t.connected;
-                liveBadge.classList.add('is-live');
+            hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+                document.getElementById('liveText').innerText = t.connected;
+                document.getElementById('liveBadge').classList.add('is-live');
+                buildQualityMenu(hlsPlayer.levels);
             });
-            hls.on(Hls.Events.ERROR, function (event, data) {
+
+            hlsPlayer.on(Hls.Events.LEVEL_SWITCHED, function (event, data) {
+                updateQualityMenuUI();
+            });
+
+            hlsPlayer.on(Hls.Events.ERROR, function (event, data) {
                 if (data.fatal) {
-                    liveBadge.classList.remove('is-live');
-                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-                    else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hlsPlayer.startLoad();
+                    else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hlsPlayer.recoverMediaError();
                 }
             });
         }
 
-        // --- Логика отображения/скрытия интерфейса (как в YouTube) ---
+        // --- Логика меню качества ---
+        function buildQualityMenu(levels) {
+            settingsMenu.innerHTML = '';
+            
+            // Кнопка АВТО
+            const autoBtn = document.createElement('div');
+            autoBtn.className = 'settings-item active';
+            autoBtn.innerText = t.auto;
+            autoBtn.dataset.level = -1;
+            autoBtn.onclick = (e) => { e.stopPropagation(); setQuality(-1); };
+            settingsMenu.appendChild(autoBtn);
+
+            // Кнопки доступных разрешений
+            levels.forEach((level, index) => {
+                const item = document.createElement('div');
+                item.className = 'settings-item';
+                // Если в манифесте нет данных о пикселях, выводим битрейт или просто номер
+                let label = level.height ? `${level.height}p` : (level.bitrate ? `${Math.round(level.bitrate/1000)} kbps` : `Качество ${index+1}`);
+                
+                item.innerText = label;
+                item.dataset.level = index;
+                item.onclick = (e) => { e.stopPropagation(); setQuality(index); };
+                settingsMenu.appendChild(item);
+            });
+        }
+
+        function setQuality(levelIndex) {
+            hlsPlayer.currentLevel = levelIndex;
+            settingsMenu.classList.remove('show');
+            updateQualityMenuUI();
+        }
+
+        function updateQualityMenuUI() {
+            const items = settingsMenu.querySelectorAll('.settings-item');
+            items.forEach(item => {
+                if (hlsPlayer.autoLevelEnabled && item.dataset.level == -1) {
+                    item.classList.add('active');
+                } else if (!hlsPlayer.autoLevelEnabled && item.dataset.level == hlsPlayer.currentLevel) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsMenu.classList.toggle('show');
+        });
+
+        // Закрываем меню при клике в любом другом месте
+        document.addEventListener('click', (e) => {
+            if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
+                settingsMenu.classList.remove('show');
+            }
+        });
+
+        // --- Логика скрытия UI ---
         let uiTimeout;
         function showUI() {
             container.classList.remove('hide-ui');
             clearTimeout(uiTimeout);
-            // Скрываем интерфейс через 2.5 секунды, если видео играет
             if (!video.paused) {
                 uiTimeout = setTimeout(() => {
-                    container.classList.add('hide-ui');
+                    // Не скрываем интерфейс, если открыты настройки
+                    if (!settingsMenu.classList.contains('show')) {
+                        container.classList.add('hide-ui');
+                    }
                 }, 2500);
             }
         }
 
-        // События активности пользователя
         container.addEventListener('mousemove', showUI);
         container.addEventListener('touchstart', showUI);
         container.addEventListener('click', showUI);
         container.addEventListener('mouseleave', () => {
-            if (!video.paused) container.classList.add('hide-ui');
+            if (!video.paused && !settingsMenu.classList.contains('show')) container.classList.add('hide-ui');
         });
 
-        // --- Управление видео ---
+        // --- Управление ---
         function togglePlay() {
             if (video.paused) {
                 video.play();
                 container.classList.remove('is-paused');
-                playIcon.className = "fas fa-pause";
+                document.getElementById('playIcon').className = "fas fa-pause";
                 playPauseBtn.title = t.pause;
-                showUI(); // Запускаем таймер скрытия
+                showUI();
             } else {
                 video.pause();
                 container.classList.add('is-paused');
-                playIcon.className = "fas fa-play";
+                document.getElementById('playIcon').className = "fas fa-play";
                 playPauseBtn.title = t.play;
-                showUI(); // Показываем интерфейс постоянно при паузе
+                showUI();
             }
         }
 
@@ -406,7 +508,10 @@ ${videoSrc}
         centerPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
         video.addEventListener('click', togglePlay);
 
-        // --- Звук ---
+        const volumeSlider = document.getElementById('volumeSlider');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeIcon = document.getElementById('volumeIcon');
+
         function updateVolumeUI() {
             if (video.muted || video.volume == 0) {
                 volumeIcon.className = "fas fa-volume-mute";
@@ -433,28 +538,21 @@ ${videoSrc}
             video.muted = (video.volume == 0);
             updateVolumeUI();
         });
-
-        // Клик по ползунку громкости не должен скрывать UI
         volumeSlider.addEventListener('click', (e) => e.stopPropagation());
 
-        // --- Полноэкранный режим ---
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const fsIcon = document.getElementById('fsIcon');
+
         function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                container.requestFullscreen().catch(err => console.log(err));
-            } else {
-                document.exitFullscreen();
-            }
+            if (!document.fullscreenElement) container.requestFullscreen().catch(err => console.log(err));
+            else document.exitFullscreen();
         }
 
         fullscreenBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullScreen(); });
-        video.addEventListener('dblclick', toggleFullScreen); // Двойной клик по видео = фуллскрин
+        video.addEventListener('dblclick', toggleFullScreen);
 
         document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                fsIcon.className = 'fas fa-compress';
-            } else {
-                fsIcon.className = 'fas fa-expand';
-            }
+            fsIcon.className = document.fullscreenElement ? 'fas fa-compress' : 'fas fa-expand';
         });
     </script>
 </body>
