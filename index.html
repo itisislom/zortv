@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FilmWorks Embed Player</title>
-    <!-- Подключаем hls.js -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
-    <!-- Иконки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -16,7 +14,6 @@
             width: 100%; 
             height: 100%; 
             overflow: hidden; 
-            /* Темно-синий в черный фон */
             background: linear-gradient(135deg, #0a1128 0%, #000000 100%); 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
             color: #fff;
@@ -41,7 +38,7 @@
             outline: none;
         }
 
-        /* Невидимый слой для отлова кликов по всей области видео */
+        /* Невидимый слой для отлова кликов */
         .click-catcher {
             position: absolute;
             top: 0;
@@ -64,7 +61,7 @@
             justify-content: space-between;
             z-index: 10;
             transition: opacity 0.3s ease;
-            pointer-events: none; /* Клики сквозь пустоту идут в click-catcher */
+            pointer-events: none; 
         }
 
         .player-container.hide-ui .player-ui {
@@ -77,13 +74,13 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            pointer-events: auto; /* Включаем клики для шапки */
+            pointer-events: auto; 
         }
 
         .bottom-controls-wrapper {
             padding: 40px 20px 15px 20px;
             background: linear-gradient(to top, rgba(6, 11, 25, 0.95) 0%, transparent 100%);
-            pointer-events: auto; /* Включаем клики для панели */
+            pointer-events: auto; 
         }
 
         .mixed-gradient-text {
@@ -269,7 +266,7 @@
             font-size: 30px;
             color: #fff;
             cursor: pointer;
-            pointer-events: none; /* Не блокирует тапы */
+            pointer-events: none; 
             opacity: 0;
             transition: opacity 0.2s, transform 0.2s;
             z-index: 15;
@@ -280,7 +277,7 @@
         .player-container.is-paused .center-play {
             opacity: 1;
             transform: translate(-50%, -50%) scale(1);
-            pointer-events: auto; /* Включаем кликабельность на паузе */
+            pointer-events: auto; 
         }
         .player-container.is-paused.hide-ui .center-play {
             opacity: 0; 
@@ -299,11 +296,12 @@
 </head>
 <body>
 
-    <div class="player-container is-paused" id="playerContainer">
+    <!-- Убрали класс "is-paused" по умолчанию -->
+    <div class="player-container" id="playerContainer">
         
-        <video id="videoPlayer" playsinline></video>
+        <!-- ДОБАВЛЕНЫ АТРИБУТЫ: autoplay и muted для гарантированного автозапуска -->
+        <video id="videoPlayer" playsinline autoplay muted></video>
 
-        <!-- Сенсорный слой для мобилок. Он прозрачный и ловит все тапы -->
         <div class="click-catcher" id="clickCatcher"></div>
 
         <div class="center-play" id="centerPlayBtn">
@@ -323,14 +321,16 @@
                     
                     <div class="control-group">
                         <button class="btn" id="playPauseBtn" title="Воспроизвести (Пробел)">
-                            <i class="fas fa-play" id="playIcon"></i>
+                            <!-- По умолчанию иконка паузы, так как видео будет играть -->
+                            <i class="fas fa-pause" id="playIcon"></i>
                         </button>
                         
                         <div class="volume-container">
                             <button class="btn" id="muteBtn" title="Звук (M)">
                                 <i class="fas fa-volume-up" id="volumeIcon"></i>
                             </button>
-                            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+                            <!-- Громкость на 0 по умолчанию из-за muted -->
+                            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="0">
                         </div>
 
                         <div class="live-badge" id="liveBadge" title="Вернуться в прямой эфир">
@@ -385,6 +385,9 @@
         const pipBtn = document.getElementById('pipBtn');
         const liveBadge = document.getElementById('liveBadge');
         const playerUI = document.querySelector('.player-ui');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeIcon = document.getElementById('volumeIcon');
         
         let hlsPlayer; 
 
@@ -402,6 +405,9 @@
 ${videoSrc}
         `.trim();
 
+        // Сразу обновляем UI громкости под "Muted"
+        updateVolumeUI();
+
         if (Hls.isSupported()) {
             const blob = new Blob([masterManifest], { type: 'application/vnd.apple.mpegurl' });
             const blobUrl = URL.createObjectURL(blob);
@@ -414,6 +420,19 @@ ${videoSrc}
                 document.getElementById('liveText').innerText = t.connected;
                 liveBadge.classList.add('is-live');
                 buildSettingsMenu();
+
+                // Принудительный запуск видео после загрузки HLS
+                video.play().then(() => {
+                    container.classList.remove('is-paused');
+                    playIcon.className = "fas fa-pause";
+                    playPauseBtn.title = t.pause;
+                    showUI();
+                }).catch(e => {
+                    // Если браузер заблокировал даже muted-автоплей
+                    console.log("Автоплей заблокирован браузером", e);
+                    container.classList.add('is-paused');
+                    playIcon.className = "fas fa-play";
+                });
             });
 
             hlsPlayer.on(Hls.Events.LEVEL_SWITCHED, updateSettingsMenuUI);
@@ -516,20 +535,17 @@ ${videoSrc}
             settingsMenu.classList.toggle('show');
         });
 
-        // Закрываем меню при клике по экрану
         clickCatcher.addEventListener('click', () => {
             settingsMenu.classList.remove('show');
         });
 
-        // --- Picture in Picture (с поддержкой AndroidBridge) ---
+        // --- Picture in Picture (AndroidBridge) ---
         pipBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             try {
-                // 1. Мост для нативного приложения Android Studio
                 if (window.AndroidBridge && window.AndroidBridge.enterPiP) {
                     window.AndroidBridge.enterPiP(); 
                 } 
-                // 2. Стандартный веб-метод
                 else if (document.pictureInPictureEnabled) {
                     if (document.pictureInPictureElement) {
                         await document.exitPictureInPicture();
@@ -537,7 +553,6 @@ ${videoSrc}
                         await video.requestPictureInPicture();
                     }
                 } 
-                // 3. Apple iOS (Safari)
                 else if (video.webkitSupportsPresentationMode && typeof video.webkitSetPresentationMode === "function") {
                     video.webkitSetPresentationMode(video.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
                 } 
@@ -561,10 +576,7 @@ ${videoSrc}
             }
         }
 
-        // Для ПК: движение мыши показывает UI
         container.addEventListener('mousemove', showUI);
-        
-        // Взаимодействие с кнопками сбрасывает таймер
         playerUI.addEventListener('click', showUI, true);
         playerUI.addEventListener('touchstart', showUI, {passive: true, capture: true});
 
@@ -574,12 +586,10 @@ ${videoSrc}
         clickCatcher.addEventListener('click', (e) => {
             const currentTime = new Date().getTime();
             
-            // Двойной тап
             if (currentTime - lastClickTime < 300) {
                 togglePlay();
                 lastClickTime = 0; 
             } else {
-                // Одинарный тап
                 if (container.classList.contains('hide-ui')) {
                     showUI();
                 } else {
@@ -594,13 +604,13 @@ ${videoSrc}
             if (video.paused) {
                 video.play();
                 container.classList.remove('is-paused');
-                document.getElementById('playIcon').className = "fas fa-pause";
+                playIcon.className = "fas fa-pause";
                 playPauseBtn.title = t.pause;
                 showUI();
             } else {
                 video.pause();
                 container.classList.add('is-paused');
-                document.getElementById('playIcon').className = "fas fa-play";
+                playIcon.className = "fas fa-play";
                 playPauseBtn.title = t.play;
                 showUI();
             }
@@ -610,10 +620,6 @@ ${videoSrc}
         centerPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
 
         // --- Звук ---
-        const volumeSlider = document.getElementById('volumeSlider');
-        const muteBtn = document.getElementById('muteBtn');
-        const volumeIcon = document.getElementById('volumeIcon');
-
         function updateVolumeUI() {
             if (video.muted || video.volume == 0) {
                 volumeIcon.className = "fas fa-volume-mute";
@@ -629,6 +635,7 @@ ${videoSrc}
 
         function toggleMute() {
             video.muted = !video.muted;
+            // Если звук включили (unmute), но громкость была 0 - ставим на 100%
             if(!video.muted && video.volume === 0) video.volume = 1;
             updateVolumeUI();
         }
@@ -660,7 +667,7 @@ ${videoSrc}
             fsIcon.className = document.fullscreenElement ? 'fas fa-compress' : 'fas fa-expand';
         });
 
-        // --- Горячие клавиши (M, F, Space) ---
+        // --- Горячие клавиши ---
         document.addEventListener('keydown', (e) => {
             if (e.target.tagName.toLowerCase() === 'input' || e.target.tagName.toLowerCase() === 'textarea') return;
             const key = e.key.toLowerCase();
