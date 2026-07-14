@@ -10,245 +10,329 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* Сброс стилей для iframe */
+        /* Сброс стилей */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
         html, body { 
             width: 100%; 
             height: 100%; 
-            overflow: hidden; /* Убираем скроллбары */
-            background-color: #000; /* Черный фон как у настоящих плееров */
+            overflow: hidden; 
+            background-color: #000; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            color: #e2e8f0;
+            color: #fff;
         }
 
-        /* Главный контейнер занимает 100% iframe */
-        .embed-container {
-            display: flex;
-            flex-direction: column;
+        /* Главный контейнер плеера */
+        .player-container {
+            position: relative;
             width: 100%;
             height: 100%;
-        }
-
-        /* Контейнер видео занимает всё свободное место */
-        .video-section {
-            flex: 1;
-            position: relative;
-            min-height: 0; /* Важно для корректной работы flexbox с видео */
-            background: #000;
             display: flex;
-            align-items: center;
-            justify-content: center;
+            background: #000;
+            /* Скрываем курсор, когда интерфейс неактивен */
+            cursor: default;
         }
 
+        .player-container.hide-ui {
+            cursor: none;
+        }
+
+        /* Видео */
         video { 
             width: 100%; 
             height: 100%;
-            object-fit: contain; /* Сохраняет пропорции без обрезки */
+            object-fit: contain;
+            outline: none;
         }
 
-        /* Заголовок поверх видео (как в YouTube) */
-        .player-header {
+        /* Обертка для всего интерфейса (поверх видео) */
+        .player-ui {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            padding: 15px 20px 40px 20px;
-            background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             z-index: 10;
-            pointer-events: none; /* Чтобы клики проходили сквозь текст на видео */
+            transition: opacity 0.3s ease;
+            pointer-events: none; /* Пропускаем клики к видео, где нет кнопок */
+        }
+
+        .player-container.hide-ui .player-ui {
+            opacity: 0;
+        }
+
+        /* Заголовок (верхний градиент) */
+        .player-header {
+            padding: 20px 20px 40px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            pointer-events: auto; /* Возвращаем клики для шапки */
+        }
+
+        .header-icon {
+            color: #ef4444; /* Красная иконка как у Live */
+            font-size: 20px;
+        }
+
+        .player-title {
+            font-size: 16px;
+            font-weight: 500;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+
+        /* Панель управления (нижний градиент) */
+        .bottom-controls-wrapper {
+            padding: 40px 20px 15px 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
+            pointer-events: auto;
+        }
+
+        .controls-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .control-group { 
+            display: flex; 
+            align-items: center; 
+            gap: 20px; 
+        }
+
+        /* Минималистичные кнопки */
+        .btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            transition: color 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            width: 30px;
+        }
+
+        .btn:hover {
+            color: #38bdf8;
+        }
+
+        .btn:active {
+            transform: scale(0.9);
+        }
+
+        /* Громкость */
+        .volume-container {
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .player-title {
-            font-size: 16px;
-            font-weight: 600;
-            background: linear-gradient(45deg, #38bdf8, #60a5fa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-
-        .header-icon {
-            color: #38bdf8;
-            font-size: 18px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-        }
-
-        /* Панель управления */
-        .custom-controls {
-            background: linear-gradient(180deg, #091428 0%, #020617 100%);
-            padding: 12px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 15px;
-            border-top: 1px solid rgba(59, 130, 246, 0.2);
-            flex-shrink: 0;
-        }
-
-        .control-group { display: flex; align-items: center; gap: 10px; }
-
-        .btn {
-            background: linear-gradient(135deg, #0c1a30 0%, #020617 100%);
-            border: 1px solid rgba(59, 130, 246, 0.35);
-            color: #38bdf8;
-            padding: 8px 14px;
-            font-size: 13px;
-            font-weight: 500;
-            border-radius: 6px;
+        .volume-slider {
+            -webkit-appearance: none;
+            width: 0; /* Скрыто по умолчанию на десктопе до наведения */
+            height: 4px; 
+            background: rgba(255, 255, 255, 0.3); 
+            border-radius: 2px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+            transition: width 0.2s ease, margin 0.2s ease;
+            opacity: 0;
         }
 
-        .btn:hover {
-            background: linear-gradient(135deg, #1d4ed8 0%, #0c1a30 100%);
-            color: #fff;
-            border-color: #60a5fa;
+        .volume-container:hover .volume-slider,
+        .volume-slider:focus {
+            width: 70px;
+            opacity: 1;
+            margin-left: 5px;
         }
 
-        .btn-main {
-            background: linear-gradient(135deg, #1e40af 0%, #030712 100%);
-            border-color: #2563eb;
-            font-weight: 600;
-            padding: 8px 18px;
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; 
+            width: 12px; 
+            height: 12px; 
+            border-radius: 50%;
+            background: #fff;
         }
 
+        .volume-slider::-webkit-slider-runnable-track {
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        /* Бейдж прямого эфира */
         .live-badge {
             display: flex;
             align-items: center;
             gap: 6px;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 700;
-            color: #f87171;
+            font-size: 13px;
+            font-weight: 600;
+            color: #d1d5db;
             text-transform: uppercase;
+            cursor: pointer;
+        }
+        
+        .live-badge.is-live {
+            color: #ef4444; /* Красный цвет, когда онлайн */
         }
 
         .live-dot {
-            width: 6px; height: 6px; background: #ef4444; border-radius: 50%;
-            animation: pulse 1.5s infinite;
+            width: 8px; height: 8px; background: #6b7280; border-radius: 50%;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(0.9); opacity: 0.5; }
-            50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 8px #ef4444; }
-            100% { transform: scale(0.9); opacity: 0.5; }
+        .live-badge.is-live .live-dot {
+            background: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
         }
 
-        .volume-slider {
-            -webkit-appearance: none;
-            width: 70px; height: 4px; background: #1e293b; border-radius: 2px;
-            cursor: pointer;
-        }
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
-            background: #38bdf8;
-        }
-
-        .stream-info { font-size: 12px; color: #64748b; display: none; }
-
-        /* Футер */
-        .footer-section {
-            background: #000;
-            text-align: center;
-            padding: 6px;
+        /* Подпись */
+        .footer-credit {
+            position: absolute;
+            bottom: 55px;
+            right: 20px;
             font-size: 11px;
-            color: #475569;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            flex-shrink: 0;
+            color: rgba(255,255,255,0.4);
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
-        .footer-section span { color: #60a5fa; font-weight: 600; }
+        .footer-credit span { color: rgba(96, 165, 250, 0.6); }
 
-        /* Адаптив для маленьких iframe (мобилки) */
-        @media (max-width: 500px) {
-            .btn-text, .stream-info { display: none; }
-            .btn { padding: 8px 12px; }
-            .btn-main { padding: 8px 14px; }
-            .volume-slider { width: 50px; }
+        /* Огромная кнопка Play по центру (появляется при паузе) */
+        .center-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(1.5);
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: #fff;
+            cursor: pointer;
+            pointer-events: auto;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 15;
+            padding-left: 5px; /* Выравнивание треугольника */
+        }
+        
+        .player-container.is-paused .center-play {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .player-container.is-paused.hide-ui .center-play {
+            opacity: 0; /* Скрываем даже ее, если UI скрыт по таймауту */
+        }
+
+        /* Мобильная адаптация */
+        @media (max-width: 600px) {
+            .player-header { padding: 15px; }
+            .bottom-controls-wrapper { padding: 30px 15px 10px 15px; }
+            .volume-slider { 
+                width: 60px; /* На мобилке показываем ползунок всегда */
+                opacity: 1; 
+                margin-left: 5px;
+            }
+            .control-group { gap: 15px; }
+            .footer-credit { display: none; }
         }
     </style>
 </head>
 <body>
 
-    <div class="embed-container" id="embedContainer">
+    <div class="player-container is-paused" id="playerContainer">
         
-        <!-- Блок с видео и плавающим заголовком -->
-        <div class="video-section">
+        <!-- Само видео -->
+        <video id="videoPlayer" playsinline></video>
+
+        <!-- Центральная кнопка Play (для мобилок и паузы) -->
+        <div class="center-play" id="centerPlayBtn">
+            <i class="fas fa-play"></i>
+        </div>
+
+        <!-- Оверлей интерфейса -->
+        <div class="player-ui">
+            <!-- Шапка -->
             <div class="player-header">
                 <i class="fa-solid fa-satellite-dish header-icon"></i>
                 <div class="player-title" id="headerText">Трансляция ZO'R TV от FilmWorks</div>
             </div>
-            <video id="videoPlayer" playsinline></video>
-        </div>
 
-        <!-- Панель управления -->
-        <div class="custom-controls">
-            <div class="control-group">
-                <button class="btn btn-main" id="playPauseBtn">
-                    <i class="fas fa-play" id="playIcon"></i> <span class="btn-text" id="playText">Воспроизвести</span>
-                </button>
-                
-                <button class="btn" id="muteBtn" style="padding: 8px 10px;">
-                    <i class="fas fa-volume-up"></i>
-                </button>
-                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
-            </div>
+            <div class="footer-credit">Made by <span>Islom Sadriddinov</span></div>
 
-            <div class="control-group">
-                <div class="stream-info" id="statusInfo">Синхронизация...</div>
-                
-                <div class="live-badge">
-                    <div class="live-dot"></div> <span id="liveText">Эфир</span>
+            <!-- Нижняя панель -->
+            <div class="bottom-controls-wrapper">
+                <div class="controls-row">
+                    
+                    <!-- Левая часть -->
+                    <div class="control-group">
+                        <button class="btn" id="playPauseBtn" title="Воспроизвести">
+                            <i class="fas fa-play" id="playIcon"></i>
+                        </button>
+                        
+                        <div class="volume-container">
+                            <button class="btn" id="muteBtn" title="Звук">
+                                <i class="fas fa-volume-up" id="volumeIcon"></i>
+                            </button>
+                            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="1">
+                        </div>
+
+                        <div class="live-badge is-live" id="liveBadge" title="Синхронизация...">
+                            <div class="live-dot"></div> <span id="liveText">Эфир</span>
+                        </div>
+                    </div>
+
+                    <!-- Правая часть -->
+                    <div class="control-group">
+                        <button class="btn" id="fullscreenBtn" title="Во весь экран">
+                            <i class="fas fa-expand" id="fsIcon"></i>
+                        </button>
+                    </div>
+
                 </div>
-                
-                <button class="btn" id="fullscreenBtn" style="padding: 8px 10px;">
-                    <i class="fas fa-expand" id="fsIcon"></i>
-                </button>
             </div>
         </div>
-
-        <!-- Подпись автора -->
-        <div class="footer-section">
-            Made by <span>Islom Sadriddinov</span>
-        </div>
-        
     </div>
 
     <script>
         // --- Локализация ---
         const dictionary = {
-            ru: {
-                header: "Трансляция ZO'R TV от FilmWorks",
-                play: "Воспроизвести", pause: "Пауза",
-                syncing: "Синхронизация...", connected: "Потоки соединены", live: "Эфир"
-            },
-            uz: {
-                header: "ZO'R TV jonli efiri FilmWorks dan",
-                play: "Ijro etish", pause: "To'xtatish",
-                syncing: "Sinxronizatsiya...", connected: "Oqimlar ulandi", live: "Efir"
-            }
+            ru: { header: "Трансляция ZO'R TV", play: "Воспроизвести", pause: "Пауза", syncing: "Синхронизация...", connected: "Эфир" },
+            uz: { header: "ZO'R TV jonli efiri", play: "Ijro etish", pause: "To'xtatish", syncing: "Sinxron...", connected: "Efir" }
         };
 
         const userLang = navigator.language.toLowerCase().includes('uz') ? 'uz' : 'ru';
         const t = dictionary[userLang];
 
         document.getElementById('headerText').innerText = t.header;
-        document.getElementById('playText').innerText = t.play;
-        document.getElementById('statusInfo').innerText = t.syncing;
-        document.getElementById('liveText').innerText = t.live;
+        document.getElementById('liveText').innerText = t.syncing;
         document.documentElement.lang = userLang;
 
-        // --- HLS Логика (Склейка потоков) ---
+        // --- Элементы DOM ---
+        const container = document.getElementById('playerContainer');
+        const video = document.getElementById('videoPlayer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const centerPlayBtn = document.getElementById('centerPlayBtn');
+        const playIcon = document.getElementById('playIcon');
+        const muteBtn = document.getElementById('muteBtn');
+        const volumeIcon = document.getElementById('volumeIcon');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const fsIcon = document.getElementById('fsIcon');
+        const liveBadge = document.getElementById('liveBadge');
+        const liveText = document.getElementById('liveText');
+
+        // --- HLS Логика ---
         const videoSrc = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/0.m3u8?pid=256";
         const audioSrc = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/2.m3u8?pid=259";
 
@@ -259,16 +343,6 @@
 ${videoSrc}
         `.trim();
 
-        const video = document.getElementById('videoPlayer');
-        const playPauseBtn = document.getElementById('playPauseBtn');
-        const playIcon = document.getElementById('playIcon');
-        const playText = document.getElementById('playText');
-        const muteBtn = document.getElementById('muteBtn');
-        const volumeSlider = document.getElementById('volumeSlider');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const embedContainer = document.getElementById('embedContainer');
-        const statusInfo = document.getElementById('statusInfo');
-
         if (Hls.isSupported()) {
             const blob = new Blob([masterManifest], { type: 'application/vnd.apple.mpegurl' });
             const blobUrl = URL.createObjectURL(blob);
@@ -277,69 +351,109 @@ ${videoSrc}
             hls.loadSource(blobUrl);
             hls.attachMedia(video);
 
-            hls.on(Hls.Events.MANIFEST_PARSED, () => statusInfo.innerText = t.connected);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                liveText.innerText = t.connected;
+                liveBadge.classList.add('is-live');
+            });
             hls.on(Hls.Events.ERROR, function (event, data) {
                 if (data.fatal) {
+                    liveBadge.classList.remove('is-live');
                     if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
                     else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
                 }
             });
         }
 
-        // --- Управление ---
-        playPauseBtn.addEventListener('click', () => {
-            if (video.paused) {
-                video.play().then(() => {
-                    playIcon.className = "fas fa-pause";
-                    playText.innerText = t.pause;
-                });
-            } else {
-                video.pause();
-                playIcon.className = "fas fa-play";
-                playText.innerText = t.play;
+        // --- Логика отображения/скрытия интерфейса (как в YouTube) ---
+        let uiTimeout;
+        function showUI() {
+            container.classList.remove('hide-ui');
+            clearTimeout(uiTimeout);
+            // Скрываем интерфейс через 2.5 секунды, если видео играет
+            if (!video.paused) {
+                uiTimeout = setTimeout(() => {
+                    container.classList.add('hide-ui');
+                }, 2500);
             }
+        }
+
+        // События активности пользователя
+        container.addEventListener('mousemove', showUI);
+        container.addEventListener('touchstart', showUI);
+        container.addEventListener('click', showUI);
+        container.addEventListener('mouseleave', () => {
+            if (!video.paused) container.classList.add('hide-ui');
         });
 
-        video.addEventListener('click', () => playPauseBtn.click());
+        // --- Управление видео ---
+        function togglePlay() {
+            if (video.paused) {
+                video.play();
+                container.classList.remove('is-paused');
+                playIcon.className = "fas fa-pause";
+                playPauseBtn.title = t.pause;
+                showUI(); // Запускаем таймер скрытия
+            } else {
+                video.pause();
+                container.classList.add('is-paused');
+                playIcon.className = "fas fa-play";
+                playPauseBtn.title = t.play;
+                showUI(); // Показываем интерфейс постоянно при паузе
+            }
+        }
 
-        muteBtn.addEventListener('click', () => {
+        playPauseBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
+        centerPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
+        video.addEventListener('click', togglePlay);
+
+        // --- Звук ---
+        function updateVolumeUI() {
+            if (video.muted || video.volume == 0) {
+                volumeIcon.className = "fas fa-volume-mute";
+                volumeSlider.value = 0;
+            } else if (video.volume < 0.5) {
+                volumeIcon.className = "fas fa-volume-down";
+                volumeSlider.value = video.volume;
+            } else {
+                volumeIcon.className = "fas fa-volume-up";
+                volumeSlider.value = video.volume;
+            }
+        }
+
+        muteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             video.muted = !video.muted;
+            if(!video.muted && video.volume === 0) video.volume = 1;
             updateVolumeUI();
         });
 
         volumeSlider.addEventListener('input', (e) => {
+            e.stopPropagation();
             video.volume = e.target.value;
             video.muted = (video.volume == 0);
             updateVolumeUI();
         });
 
-        function updateVolumeUI() {
-            if (video.muted || video.volume == 0) {
-                muteBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-                volumeSlider.value = 0;
-            } else if (video.volume < 0.5) {
-                muteBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
-                volumeSlider.value = video.volume;
+        // Клик по ползунку громкости не должен скрывать UI
+        volumeSlider.addEventListener('click', (e) => e.stopPropagation());
+
+        // --- Полноэкранный режим ---
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => console.log(err));
             } else {
-                muteBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-                volumeSlider.value = video.volume;
+                document.exitFullscreen();
             }
         }
 
-        fullscreenBtn.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                embedContainer.requestFullscreen().then(() => {
-                    document.getElementById('fsIcon').className = 'fas fa-compress';
-                });
-            } else {
-                document.exitFullscreen();
-                document.getElementById('fsIcon').className = 'fas fa-expand';
-            }
-        });
+        fullscreenBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleFullScreen(); });
+        video.addEventListener('dblclick', toggleFullScreen); // Двойной клик по видео = фуллскрин
 
         document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) {
-                document.getElementById('fsIcon').className = 'fas fa-expand';
+            if (document.fullscreenElement) {
+                fsIcon.className = 'fas fa-compress';
+            } else {
+                fsIcon.className = 'fas fa-expand';
             }
         });
     </script>
