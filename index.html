@@ -164,7 +164,6 @@
             box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
         }
 
-        /* Обновленное меню настроек (с категориями) */
         .settings-menu {
             position: absolute;
             bottom: 45px;
@@ -269,7 +268,7 @@
             .player-header { padding: 15px; }
             .bottom-controls-wrapper { padding: 30px 15px 10px 15px; }
             .volume-slider { width: 60px; opacity: 1; margin-left: 5px; }
-            .control-group { gap: 15px; }
+            .control-group { gap: 12px; } /* Чуть уменьшен отступ, чтобы вместилась новая кнопка */
             .footer-credit { display: none; }
             .settings-menu { right: -10px; }
         }
@@ -314,12 +313,17 @@
                     </div>
 
                     <div class="control-group">
+                        <!-- Кнопка Картинка-в-картинке (Pop-up) -->
+                        <button class="btn" id="pipBtn" title="Мини-плеер (Pop-up)">
+                            <i class="fa-solid fa-clone"></i>
+                        </button>
+
                         <button class="btn" id="settingsBtn" title="Настройки">
                             <i class="fas fa-cog"></i>
                         </button>
                         
                         <div class="settings-menu" id="settingsMenu">
-                            <!-- Пункты (Аудио и Качество) генерируются через JS -->
+                            <!-- Пункты генерируются через JS -->
                         </div>
 
                         <button class="btn" id="fullscreenBtn" title="Во весь экран">
@@ -334,8 +338,8 @@
 
     <script>
         const dictionary = {
-            ru: { header: "Трансляция ZO'R TV", play: "Воспроизвести", pause: "Пауза", syncing: "Синхронизация...", connected: "Эфир", auto: "Авто" },
-            uz: { header: "ZO'R TV jonli efiri", play: "Ijro etish", pause: "To'xtatish", syncing: "Sinxron...", connected: "Efir", auto: "Avto" }
+            ru: { header: "Трансляция ZO'R TV", play: "Воспроизвести", pause: "Пауза", syncing: "Синхронизация...", connected: "Эфир", auto: "Авто", pip: "Мини-плеер" },
+            uz: { header: "ZO'R TV jonli efiri", play: "Ijro etish", pause: "To'xtatish", syncing: "Sinxron...", connected: "Efir", auto: "Avto", pip: "Mini-pleyer" }
         };
 
         const userLang = navigator.language.toLowerCase().includes('uz') ? 'uz' : 'ru';
@@ -343,6 +347,7 @@
 
         document.getElementById('headerText').innerText = t.header;
         document.getElementById('liveText').innerText = t.syncing;
+        document.getElementById('pipBtn').title = t.pip;
 
         const container = document.getElementById('playerContainer');
         const video = document.getElementById('videoPlayer');
@@ -351,16 +356,14 @@
         const playIcon = document.getElementById('playIcon');
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsMenu = document.getElementById('settingsMenu');
+        const pipBtn = document.getElementById('pipBtn');
         
         let hlsPlayer; 
 
-        // Ссылки на потоки. Сюда нужно вставить реальные ссылки для Русского и Узбекского аудио
         const videoSrc = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/0.m3u8?pid=256";
         const audioSrcRu = "https://stream8-uzbeeline.platform24.tv/mbrjwt/3b3bd2185a7c7e3403270d0cb06f5d2c77837e90-4783-0-uzt6061235-5-1587428585-1784054005-e128-66TRwuSTmhXtawqp1n38u_YUCHBbcGfaPqBe22_Oukc/2.m3u8?pid=259";
-        // ВАЖНО: Если узбекская дорожка лежит по другому адресу, замените эту ссылку!
-        const audioSrcUz = audioSrcRu.replace("2.m3u8", "3.m3u8"); // Пример, как может выглядеть вторая ссылка
+        const audioSrcUz = audioSrcRu.replace("2.m3u8", "3.m3u8"); // Не забудьте указать точную ссылку для узбекского языка
 
-        // Создаем манифест с ДВУМЯ аудиодорожками
         const masterManifest = `
 #EXTM3U
 #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",LANGUAGE="ru",NAME="Русский",DEFAULT=YES,AUTOSELECT=YES,URI="${audioSrcRu}"
@@ -394,11 +397,10 @@ ${videoSrc}
             });
         }
 
-        // --- Логика общего меню настроек ---
+        // --- Меню настроек ---
         function buildSettingsMenu() {
             settingsMenu.innerHTML = '';
             
-            // 1. СЕКЦИЯ КАЧЕСТВА
             const qualTitle = document.createElement('div');
             qualTitle.className = 'settings-section-title';
             qualTitle.innerText = 'Качество';
@@ -421,7 +423,6 @@ ${videoSrc}
                 settingsMenu.appendChild(item);
             });
 
-            // 2. СЕКЦИЯ АУДИО
             if (hlsPlayer.audioTracks && hlsPlayer.audioTracks.length > 1) {
                 const divider = document.createElement('div');
                 divider.className = 'settings-divider';
@@ -458,24 +459,15 @@ ${videoSrc}
         }
 
         function updateSettingsMenuUI() {
-            // Обновляем галочки качества
             settingsMenu.querySelectorAll('.qual-item').forEach(item => {
-                if (hlsPlayer.autoLevelEnabled && item.dataset.level == -1) {
-                    item.classList.add('active');
-                } else if (!hlsPlayer.autoLevelEnabled && item.dataset.level == hlsPlayer.currentLevel) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
+                if (hlsPlayer.autoLevelEnabled && item.dataset.level == -1) item.classList.add('active');
+                else if (!hlsPlayer.autoLevelEnabled && item.dataset.level == hlsPlayer.currentLevel) item.classList.add('active');
+                else item.classList.remove('active');
             });
             
-            // Обновляем галочки аудио
             settingsMenu.querySelectorAll('.audio-item').forEach(item => {
-                if (parseInt(item.dataset.audioId) === hlsPlayer.audioTrack) {
-                    item.classList.add('active');
-                } else {
-                    item.classList.remove('active');
-                }
+                if (parseInt(item.dataset.audioId) === hlsPlayer.audioTrack) item.classList.add('active');
+                else item.classList.remove('active');
             });
         }
 
@@ -487,6 +479,28 @@ ${videoSrc}
         document.addEventListener('click', (e) => {
             if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
                 settingsMenu.classList.remove('show');
+            }
+        });
+
+        // --- Picture in Picture (Pop-up плеер) ---
+        // Проверяем поддержку PiP браузером. Если не поддерживается - скрываем кнопку
+        if (!('pictureInPictureEnabled' in document) && !video.webkitSetPresentationMode) {
+            pipBtn.style.display = 'none';
+        }
+
+        pipBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled) {
+                    await video.requestPictureInPicture();
+                } else if (video.webkitSetPresentationMode) {
+                    // Поддержка для старых версий iOS/Safari
+                    video.webkitSetPresentationMode(video.webkitPresentationMode === "picture-in-picture" ? "inline" : "picture-in-picture");
+                }
+            } catch (error) {
+                console.error("Ошибка при переходе в режим мини-плеера:", error);
             }
         });
 
@@ -504,23 +518,18 @@ ${videoSrc}
 
         container.addEventListener('mousemove', showUI);
         
-        // --- Логика тапов (Одинарный = UI, Двойной = Пауза) ---
+        // --- Логика тапов ---
         let lastClickTime = 0;
         video.addEventListener('click', (e) => {
             e.stopPropagation();
             const currentTime = new Date().getTime();
             
-            // Если с прошлого клика прошло меньше 300мс — это двойной тап
             if (currentTime - lastClickTime < 300) {
                 togglePlay();
-                lastClickTime = 0; // Сбрасываем таймер
+                lastClickTime = 0; 
             } else {
-                // Иначе это одинарный тап (скрыть/показать UI)
-                if (container.classList.contains('hide-ui')) {
-                    showUI();
-                } else {
-                    container.classList.add('hide-ui');
-                }
+                if (container.classList.contains('hide-ui')) showUI();
+                else container.classList.add('hide-ui');
                 lastClickTime = currentTime;
             }
         });
@@ -542,8 +551,6 @@ ${videoSrc}
         }
 
         playPauseBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
-        
-        // Центральная кнопка: одиночный клик снимает с паузы
         centerPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); togglePlay(); });
 
         // --- Звук ---
